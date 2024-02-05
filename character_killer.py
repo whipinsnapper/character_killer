@@ -1,6 +1,22 @@
-import sys
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QComboBox, QPushButton, QLabel, QFileDialog, QDialog, QProgressBar
-import os, shutil
+import sys, os, shutil
+
+def check_dependencies(programs):
+    errors = 0
+    for program in programs:
+        if shutil.which(program) is None:
+            sys.stderr.write(f"{program} is not installed or is not added to PATH.")
+            errors += 1
+    if errors > 0:
+        raise SystemExit(1)
+
+try:
+    from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QComboBox, QPushButton, QLabel, QFileDialog, QDialog, QFrame
+    from PyQt5.QtGui import QFont
+    from PyQt5.QtCore import Qt
+except:
+    sys.stderr.write("PyQt5 is not installed. Install it with the command: pip install PyQt5")
+    check_dependencies(["wit", "wszst"])
+    raise SystemExit(1)
 
 def get_filenames(size, id):
     """Returns a list of all MKWii character filenames."""
@@ -92,10 +108,11 @@ class MyGUI(QWidget):
                  "Wario", "Waluigi", "Donkey Kong", "Bowser", "King Boo", "Rosalina", "Funky Kong", "Dry Bowser"]
 
         self.setWindowTitle('Character Killer')
+        self.setMinimumWidth(400)
 
         layout = QVBoxLayout()
 
-        # Dropdown menu
+        # Character dropdown menu
         self.dropdown_label = QLabel('Select a character:')
         self.dropdown_menu = QComboBox()
         options = names
@@ -103,6 +120,12 @@ class MyGUI(QWidget):
 
         layout.addWidget(self.dropdown_label)
         layout.addWidget(self.dropdown_menu)
+
+        #Separator
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        separator.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(separator)
 
         # Button to select ISO
         self.file_button = QPushButton('MKWii ISO')
@@ -114,15 +137,25 @@ class MyGUI(QWidget):
         self.file_button.clicked.connect(self.selectSourceSZS)
         layout.addWidget(self.file_button)
 
-        # Button to select folder
+        # Button to select output folder
         self.folder_button = QPushButton('Output Folder')
         self.folder_button.clicked.connect(self.selectFolder)
         layout.addWidget(self.folder_button)
 
-        # Button to call function
-        self.call_function_button = QPushButton('Patch Files!')
-        self.call_function_button.clicked.connect(self.callFunction)
-        layout.addWidget(self.call_function_button)
+        # Another separator
+        separator2 = QFrame()
+        separator2.setFrameShape(QFrame.HLine)
+        separator2.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(separator2)
+
+        # Button to patch files
+        self.patch_button = QPushButton('Patch Files!')
+        self.patch_button.setFixedHeight(50)
+        font = QFont("Arial", 9)
+        font.setBold(True)
+        self.patch_button.setFont(font)
+        self.patch_button.clicked.connect(self.patchFiles)
+        layout.addWidget(self.patch_button)
 
         self.setLayout(layout)
 
@@ -130,69 +163,77 @@ class MyGUI(QWidget):
         filename, _ = QFileDialog.getOpenFileName(self, 'Select MKWii ISO')
         if filename:
             self.iso_location = filename
+            print(f"MKWii ISO: {filename}")
 
     def selectSourceSZS(self):
         filename, _ = QFileDialog.getOpenFileName(self, 'Select Source SZS')
         if filename:
             self.source_szs = filename
+            print(f"Source SZS: {filename}")
 
     def selectFolder(self):
-        foldername = QFileDialog.getExistingDirectory(self, 'Select Destination Folder')
+        foldername = QFileDialog.getExistingDirectory(self, 'Select Output Folder')
         if foldername:
             self.output_directory = foldername
+            print(f"Output directory: {foldername}")
 
-    def callFunction(self):
+    def patchFiles(self):
         self.character_name = self.dropdown_menu.currentText()
-
-        self.iso_error = 0
-        self.output_error = 0
-        self.source_error = 0
-
-        if self.iso_location == '':
-            self.iso_error = 1
-        if self.output_directory == '':
-            self.output_error = 1
-        if self.source_szs == '':
-            self.source_error = 1
-
-        errors = self.iso_error + self.output_error + self.source_error
-
-        if errors > 0:
-            popup_dialog = PopupError(self.iso_error, self.output_error, self.source_error, self)
-            popup_dialog.exec_()
         
+        #Gets file extensions for the ISO file and source SZS file
+        iso_extension = os.path.splitext(self.iso_location)[1][1:]
+        szs_extension = os.path.splitext(self.source_szs)[1][1:]
+
+        error_messages = {
+            "iso_empty": "MKWii ISO location is not specified.",
+            "iso_ext": "MKWii ISO must end in either .iso or .wbfs.",
+            "output_error": "Output directory is not specified.",
+            "source_error": "Source SZS file is not specified.",
+            "source_ext": "Source SZS file must end in .szs."
+        }
+
+        #Returns 1 for each error found
+        errors = {
+            "iso_empty": int(self.iso_location == ''),
+            "iso_ext": int(iso_extension.lower() not in ['iso', 'wbfs']),
+            "output_error": int(self.output_directory == ''),
+            "source_error": int(self.source_szs == ''),
+            "source_ext": int(szs_extension.lower() != 'szs')
+        }
+
+        errors_present = [key for key, value in errors.items() if value]
+
+        if errors_present:
+            error_messages_str = "\n".join([error_messages[error] for error in errors_present])
+            popup_dialog = PopupError(error_messages_str, self)
+            popup_dialog.exec_()
         else:
             main_operation(self.iso_location, self.output_directory, self.character_name, self.source_szs)
             popup_dialog = PopupComplete(self.output_directory, self)
             popup_dialog.exec_()
 
 class PopupError(QDialog):
-    def __init__(self, iso_error, output_error, source_error, parent=None):
+    def __init__(self, error_messages_str, parent=None):
         super().__init__(parent)
 
         self.setWindowTitle('Error')
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
 
         layout = QVBoxLayout()
 
-        self.error_msg = QLabel('Error! Please do the following things:\n')
+        self.error_msg = QLabel('The following errors were found:\n')
         layout.addWidget(self.error_msg)
-
-        if iso_error == 1:
-            self.iso_label = QLabel('Select MKWii ISO')
-            layout.addWidget(self.iso_label)
-        if output_error == 1:
-            self.output_label = QLabel('Select output directory')
-            layout.addWidget(self.output_label)
-        if source_error == 1:
-            self.source_label = QLabel('Select source SZS')
-            layout.addWidget(self.source_label)
-
+        
+        self.errors = QLabel(error_messages_str)
+        layout.addWidget(self.errors)
+            
         self.setLayout(layout)
 
 class PopupComplete(QDialog):
     def __init__(self, output_directory, parent=None):
         super().__init__(parent)
         self.setWindowTitle('Complete')
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
         layout = QVBoxLayout()
 
         self.output_directory = output_directory
@@ -217,6 +258,7 @@ class PopupComplete(QDialog):
         self.close()
 
 if __name__ == '__main__':
+    check_dependencies(["wit", "wszst"])
     app = QApplication(sys.argv)
     gui = MyGUI()
     gui.show()
