@@ -34,7 +34,7 @@ def extract_from_iso(iso_location, filenames, output_directory):
     #This works but puts them all in their own little directory tree, which I'd like not to happen.
     #The second for loop moves the SZS files back to the root folder and removes the leftover folders.
     for file in filenames:
-        os.system(f'wit extract {iso_location} --files "+{file}" --DEST "{output_directory}/.tmp/{file[:-4]}"')
+        os.system(f'wit extract "{iso_location}" --files "+{file}" --DEST "{output_directory}/.tmp/{file[:-4]}"')
     for file in filenames:
         shutil.move(f"{output_directory}/.tmp/{file[:-4]}/files/Race/Kart/{file}", f"{output_directory}/.tmp/")
         shutil.rmtree(f"{output_directory}/.tmp/{file[:-4]}")
