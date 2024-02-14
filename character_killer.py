@@ -168,7 +168,7 @@ class MyGUI(QWidget):
             names.append(name)
         options = ["Default"] + names
 
-        self.setWindowTitle('Character Killer v1.2.0')
+        self.setWindowTitle('Character Killer v1.1.0')
         self.setFixedWidth(455)
         self.setFixedHeight(335)
 
